@@ -1,5 +1,14 @@
 module Snackomat
   class App
+
+    def initialize
+      @rack_static = ::Rack::Static.new(
+          lambda { [404, {}, []] },
+          root: File.expand_path('../../public', __FILE__),
+          urls: ['/']
+      )
+    end
+
     def self.instance
       @instance ||= Rack::Builder.new do
         use Rack::Cors do
@@ -14,15 +23,19 @@ module Snackomat
     end
 
     def call(env)
-      request_path = env['PATH_INFO'];
-
-      puts request_path
-      if(request_path == '/' || request_path == '')
-        env['PATH_INFO'] = '/api/products'
-      end
 
       # api
       response = Snackomat::API.call(env)
+
+      if response[1]['X-Cascade'] == 'pass'
+        # static files
+        request_path = env['PATH_INFO']
+        if(request_path == '/' || request_path == '')
+          response = @rack_static.call(env.merge('PATH_INFO' => "/index.html"))
+          return response if response[0] != 404
+        end
+      end
+
 
       # Serve error pages or respond with API response
       case response[0]
